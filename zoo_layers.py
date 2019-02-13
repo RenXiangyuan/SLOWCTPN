@@ -191,48 +191,83 @@ def block_resnet_others(inputs, layer_params, relu, training, name):
     #   
     return outputs
     #
+def block_resnet_half(inputs, filters, relu, training, name):
+    with tf.variable_scope(name):
+        # 下面两行 可以用same padding代替?
+        # outputs = padd_layer(inputs, [[0, 0], [0, 1], [0, 1], [0, 0]], name='padd')
+        # outputs = conv_layer(outputs, [filters, (3, 3), (2, 2), 'valid', True, True, 'conv1'], training)
+        print(name+"shape: input", inputs.shape)
+        outputs = conv_layer(inputs, [filters, (3, 3), (2, 2), 'same', True, True, 'conv1'], training)
+        outputs = conv_layer(outputs, [filters, (3, 1), (1, 1), 'same', True, False, 'conv2'], training)
+        #
+        if inputs.get_shape().as_list()[-1] == filters:
+            short_cut = maxpool_layer(inputs, (2, 2), (2, 2), 'valid', 'skip_pool')
+        else:
+            short_cut = conv_layer(inputs, [filters, 1, (2, 2), 'same', True, False, 'skip_conv'], training)
+        #
+        print(name + "shape: conv", outputs.shape)
+        print(name + "shape: short_cut", short_cut.shape)
+        outputs = tf.add(outputs, short_cut, name='add')
+        if relu: outputs = tf.nn.relu(outputs, 'last_relu')
+        #
+        return outputs
 
-def block_resnet(inputs, filters, flag_size, relu, training, name):
+def block_resnet(inputs, filters, relu, training, name):
     '''define resnet block'''
     #
     with tf.variable_scope(name):
         #
-        if flag_size == 1:  # same_size
-            #
-            item1 = [ filters, (3,3), (1,1), 'same', True,  True, 'conv1']
-            item2 = [ filters, (3,3), (1,1), 'same', True, False, 'conv2']
-            outputs = conv_layer(inputs, item1, training)
-            outputs = conv_layer(outputs, item2, training)
-            #
-            outputs = tf.add(outputs, inputs, name = 'add')  
-            if relu: outputs = tf.nn.relu(outputs, 'last_relu')
-            #
-            return outputs
-            #
-        elif flag_size == 2:  # half_size
-            #
-            outputs = padd_layer(inputs, [[0,0],[0,1],[0,1],[0,0]], name='padd')
-            #
-            item1 = [ filters, (3,3), (2,2), 'valid', True,  True, 'conv1']
-            item2 = [ filters, (3,3), (1,1),  'same', True, False, 'conv2']
-            outputs = conv_layer(outputs, item1, training)
-            outputs = conv_layer(outputs, item2, training)
-            #
-            short_cut = maxpool_layer(inputs, (2,2), (2,2), 'valid', 'skip_pool')
-            #
-            item = [filters, 1, (1,1), 'same', True, False, 'skip_conv']
-            short_cut = conv_layer(short_cut, item, training)  
-            #
-            outputs = tf.add(outputs, short_cut, name = 'add')  
-            if relu: outputs = tf.nn.relu(outputs, 'last_relu')
-            #
-            return outputs
-            #
-        else:            
-            print('flag_size not 1 or 2, in block_resnet_paper()')
-            #
-            return inputs
-            #
+        outputs = conv_layer(inputs, [ filters, (3,1), (1,1), 'same', True,  True, 'conv1'], training)
+        outputs = conv_layer(outputs, [ filters, (3,1), (1,1), 'same', True, False, 'conv2'], training)
+        #
+        outputs = tf.add(outputs, inputs, name = 'add')
+        if relu: outputs = tf.nn.relu(outputs, 'last_relu')
+        #
+        return outputs
+        #
+
+
+# def block_resnet(inputs, filters, flag_size, relu, training, name):
+#     '''define resnet block'''
+#     #
+#     with tf.variable_scope(name):
+#         #
+#         if flag_size == 1:  # same_size
+#             #
+#             item1 = [ filters, (3,3), (1,1), 'same', True,  True, 'conv1']
+#             item2 = [ filters, (3,3), (1,1), 'same', True, False, 'conv2']
+#             outputs = conv_layer(inputs, item1, training)
+#             outputs = conv_layer(outputs, item2, training)
+#             #
+#             outputs = tf.add(outputs, inputs, name = 'add')
+#             if relu: outputs = tf.nn.relu(outputs, 'last_relu')
+#             #
+#             return outputs
+#             #
+#         elif flag_size == 2:  # half_size
+#             #
+#             outputs = padd_layer(inputs, [[0,0],[0,1],[0,1],[0,0]], name='padd')
+#             #
+#             item1 = [ filters, (3,3), (2,2), 'valid', True,  True, 'conv1']
+#             item2 = [ filters, (3,3), (1,1),  'same', True, False, 'conv2']
+#             outputs = conv_layer(outputs, item1, training)
+#             outputs = conv_layer(outputs, item2, training)
+#             #
+#             short_cut = maxpool_layer(inputs, (2,2), (2,2), 'valid', 'skip_pool')
+#             #
+#             item = [filters, 1, (1,1), 'same', True, False, 'skip_conv']
+#             short_cut = conv_layer(short_cut, item, training)
+#             #
+#             outputs = tf.add(outputs, short_cut, name = 'add')
+#             if relu: outputs = tf.nn.relu(outputs, 'last_relu')
+#             #
+#             return outputs
+#             #
+#         else:
+#             print('flag_size not 1 or 2, in block_resnet_paper()')
+#             #
+#             return inputs
+
 
 def block_bottleneck(inputs, depth_arr, relu, training, name):
     '''define bottleneck block'''

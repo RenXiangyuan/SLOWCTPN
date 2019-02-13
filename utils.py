@@ -74,10 +74,10 @@ def get_list_contents(content_file):
 #
 #
 def calculate_targets_at_use_json(anchor_center, txt_list, anchor_heights):
-    anchor_width = 8
+    anchor_width = 32
     #
-    ash = 12  # anchor stride - height
-    asw = 8  # anchor stride - width
+    ash = 32  # anchor stride - height
+    asw = 32  # anchor stride - width
     #
 
     #
@@ -362,7 +362,7 @@ def get_image_and_targets(img_file, txt_file, anchor_heights):
     # img_data
     img = Image.open(img_file)
 
-    width = img.size[0]
+    origin_width = img.size[0]
     # print("img size: ", img.size)
     #
     # # counter-clockwise 90
@@ -376,7 +376,7 @@ def get_image_and_targets(img_file, txt_file, anchor_heights):
     # texts
     # txt_list = get_list_contents(txt_file)
 
-    txt_list = get_list_contents_use_json(txt_file, width)
+    txt_list = get_list_contents_use_json(txt_file, origin_width)
     # print("One Label: ", txt_list[0])
     #
     
@@ -387,8 +387,8 @@ def get_image_and_targets(img_file, txt_file, anchor_heights):
     # ///2, ///2, //3, -255
     # ///2, ///2, ///2,    
     #
-    height_feat = floor(ceil(ceil(img_size[0]/2.0)/2.0)/3.0) - 2
-    width_feat = ceil(ceil(ceil(img_size[1]/2.0)/2.0)/2.0)
+    height_feat = ceil(ceil(ceil(ceil(ceil(img_size[0]/2.0)/2.0)/2.0)/2)/2)
+    width_feat = ceil(ceil(ceil(ceil(ceil(img_size[1]/2.0)/2.0)/2.0)/2)/2)
     #
     
     #
@@ -424,11 +424,11 @@ def get_image_and_targets(img_file, txt_file, anchor_heights):
     #
     # anchor_width = 8
     #
-    ash = 12  # anchor stride - height
-    asw = 8   # anchor stride - width
+    ash = 32  # anchor stride - height
+    asw = 32   # anchor stride - width
     #
-    hc_start = 18
-    wc_start = 4
+    hc_start = 16
+    wc_start = 16
     #
     
     for h in range(height_feat):
@@ -448,67 +448,50 @@ def get_image_and_targets(img_file, txt_file, anchor_heights):
     #
 #
 def trans_results(r_cls, r_ver, r_hor, anchor_heights, threshold):
-    #
-    # anchor width: 8,
-    #
-    
-    #
-    anchor_width = 8
-    #
-    ash = 12  # anchor stride - height
-    asw = 8   # anchor stride - width
-    #
-    hc_start = 18
-    wc_start = 4
-    #
-    
-    #
-    aw = anchor_width
-    #
-        
-    #
-    list_bbox = []
-    list_conf = []
-    #
-    feat_shape = r_cls.shape
-    #print(feat_shape)
-    #
-    for h in range(feat_shape[0]):
-        #
-        for w in range(feat_shape[1]):
-            #
-            if max(r_cls[h,w,:]) < threshold: continue
-            #
-            anchor_posi = np.argmax(r_cls[h,w,:])  # in r_cls
-            anchor_id = anchor_posi //2  # in anchor_heights
-            #
-            #print(anchor_id)
-            #print(r_cls[h,w,:])
-            #
-            #
-            ah = anchor_heights[anchor_id]  #
-            anchor_posi = anchor_id *2   # for retrieve in r_ver, r_hor
-            #
-            hc = hc_start + ash * h   # anchor center
-            wc = wc_start + asw * w   # anchor center
-            #
-            half_ah = ah //2
-            half_aw = aw //2
-            #
-            anchor_bbox = [wc - half_aw, hc - half_ah, wc + half_aw, hc + half_ah]
-            #
+    anchor_positivenesses, anchor_vertical_overlap_ratios, anchor_horizontal_overlap_ratios =r_cls, r_ver, r_hor
+
+    anchor_width = 32
+    anchor_stride_height = 32
+    anchor_stride_width = 32
+    height_center_start = 16
+    width_center_start = 16
+
+    feature_map_height, feature_map_width, _ = anchor_positivenesses.shape
+
+    output_bboxes = []
+    output_confidences = []
+    for y in range(feature_map_height):
+        for x in range(feature_map_width):
+            if max(anchor_positivenesses[y, x, :]) < threshold:
+                continue
+            anchor_posi = np.argmax(anchor_positivenesses[y, x, :])
+            anchor_idx = anchor_posi // 2
+            anchor_height = anchor_heights[anchor_idx]
+            anchor_posi = anchor_idx * 2
+            height_center = height_center_start + anchor_stride_height * y
+            width_center = width_center_start + anchor_stride_width * x
+            half_anchor_height = anchor_height // 2
+            half_anchor_width = anchor_width // 2
+
+            anchor_bbox = [max(0, width_center - half_anchor_width), max(0,height_center - half_anchor_height),
+                           width_center + half_anchor_width, height_center + half_anchor_height]
+
             text_bbox = [0, 0, 0, 0]
-            #
-            text_bbox[0] = anchor_bbox[0] + aw * r_hor[h,w,anchor_posi]
-            text_bbox[1] = anchor_bbox[1] + ah * r_ver[h,w,anchor_posi]
-            text_bbox[2] = anchor_bbox[2] + aw * r_hor[h,w,anchor_posi+1]
-            text_bbox[3] = anchor_bbox[3] + ah * r_ver[h,w,anchor_posi+1]
-            #
-            list_bbox.append(text_bbox)
-            list_conf.append(max(r_cls[h,w,:]))
-            #
-    #
-    return list_bbox, list_conf
+            text_bbox[0] = anchor_bbox[0] + anchor_width * anchor_horizontal_overlap_ratios[y, x, anchor_posi]
+            text_bbox[1] = anchor_bbox[1] + anchor_height * anchor_vertical_overlap_ratios[y, x, anchor_posi]
+            text_bbox[2] = anchor_bbox[2] + anchor_width * anchor_horizontal_overlap_ratios[y, x, anchor_posi + 1]
+            text_bbox[3] = anchor_bbox[3] + anchor_height * anchor_vertical_overlap_ratios[y, x, anchor_posi + 1]
+
+            output_bboxes.append(text_bbox)
+
+            # print(anchor_idx)
+            # print(anchor_bbox)
+            # print("anchor_horizontal_overlap_ratios",anchor_horizontal_overlap_ratios[y, x, anchor_posi])
+            # print("anchor_vertical_overlap_ratios",anchor_vertical_overlap_ratios[y, x, anchor_posi])
+            # print()
+            # output_confidences.append(max(anchor_positivenesses[y, x, :]))
+            # return output_bboxes, output_confidences
+    return output_bboxes, output_confidences
     #
 
 def do_nms_and_connection(list_bbox, list_conf):
@@ -578,7 +561,7 @@ if __name__ == '__main__':
     #
     print('draw target bbox ... ')
     #
-    import model_detect_meta as meta
+    import config as meta
     #
     list_imgs = get_files_with_ext(meta.dir_images_valid, 'png')
     #

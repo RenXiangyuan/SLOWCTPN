@@ -9,18 +9,14 @@ import zoo_layers as layers
 #
 # model
 #
-def conv_feat_layers(inputs, width, training):
+def conv_feat_layers(inputs, training):
     #
     # convolutional features maps for detection
-    #
-
-    #
-    # detection
     #
     # [3,1; 1,1],
     # [9,2; 3,2], [9,2; 3,2], [9,2; 3,2]
     # [18,4; 6,4], [18,4; 6,4], [18,4; 6,4]
-    # [36,8; 12,8], [36,8; 12,8], [36,8; 12,8], 
+    # [36,8; 12,8], [36,8; 12,8], [36,8; 12,8],
     #
     # anchor width:  8,
     # anchor height: 6, 12, 24, 36,
@@ -35,94 +31,65 @@ def conv_feat_layers(inputs, width, training):
     # [0,1] --> [18, 4+8]
     # [i,j] --> [18+12*i, 4+8*j]
     #
-
-    #
-    layer_params = [ [  64, (3,3), (1,1),  'same', True, True, 'conv1'], 
-                     [ 128, (3,3), (1,1),  'same', True, True, 'conv2'],
-                     [ 128, (2,2), (2,2), 'valid', True, True, 'pool1'], # for pool
-                     [ 128, (3,3), (1,1),  'same', True, True, 'conv3'], 
-                     [ 256, (3,3), (1,1),  'same', True, True, 'conv4'],
-                     [ 256, (2,2), (2,2), 'valid', True, True, 'pool2'], # for pool
-                     [ 256, (3,3), (1,1),  'same', True, True, 'conv5'],
-                     [ 512, (3,3), (1,1),  'same', True, True, 'conv6'],
-                     [ 512, (3,2), (3,2), 'valid', True, True, 'pool3'], # for pool
-                     [ 512, (3,1), (1,1), 'valid', True, True, 'conv_feat'] ] # for feat
-    
     #
     with tf.variable_scope("conv_comm"):
-        #        
-        inputs = layers.conv_layer(inputs, layer_params[0], training)
-        inputs = layers.conv_layer(inputs, layer_params[1], training)
-        inputs = layers.padd_layer(inputs, [[0,0],[0,1],[0,1],[0,0]], name='padd1')
-        #inputs = layers.conv_layer(inputs, layer_params[2], training)
-        inputs = layers.maxpool_layer(inputs, (2,2), (2,2), 'valid', 'pool1')
-        #        
-        params = [[ 128, 3, (1,1), 'same', True,  True, 'conv1'], 
-                  [ 128, 3, (1,1), 'same', True, False, 'conv2']] 
-        inputs = layers.block_resnet_others(inputs, params, True, training, 'res1')
         #
-        inputs = layers.conv_layer(inputs, layer_params[3], training)
-        inputs = layers.conv_layer(inputs, layer_params[4], training)
-        inputs = layers.padd_layer(inputs, [[0,0],[0,1],[0,1],[0,0]], name='padd2')
-        #inputs = layers.conv_layer(inputs, layer_params[5], training)
-        inputs = layers.maxpool_layer(inputs, (2,2), (2,2), 'valid', 'pool2')
+        inputs = layers.conv_layer(inputs, [64, (7, 7), (2, 2), 'same', True, True, 'conv1'], training)
+        inputs = layers.maxpool_layer(inputs, (3, 3), (2, 2), 'same', 'pool1')
+
+        inputs = layers.block_resnet(inputs, 64, relu = True, training = training, name = 'res1_1')
+        inputs = layers.block_resnet(inputs, 64, relu = True, training = training, name = 'res1_2')
+
+        inputs = layers.block_resnet_half(inputs, 128, relu = True, training = training, name = 'res2_1')
+        inputs = layers.block_resnet(inputs, 128, relu=True, training=training, name='res2_2')
+
+        inputs = layers.block_resnet_half(inputs, 256, relu=True, training=training, name='res3_1')
+        inputs = layers.block_resnet(inputs, 256, relu=True, training=training, name='res3_2')
+
+        inputs = layers.block_resnet_half(inputs, 512, relu=True, training=training, name='res4_1')
+        inputs = layers.block_resnet(inputs, 512, relu=True, training=training, name='res4_2')
+
         #
-        params = [[ 256, 3, (1,1), 'same', True,  True, 'conv1'], 
-                  [ 256, 3, (1,1), 'same', True, False, 'conv2']] 
-        inputs = layers.block_resnet_others(inputs, params, True, training, 'res2')
+        # conv_feat = layers.conv_layer(inputs, [512, (3, 1), (1, 1), 'valid', True, True, 'conv_feat'], training)
         #
-        inputs = layers.conv_layer(inputs, layer_params[6], training)
-        inputs = layers.conv_layer(inputs, layer_params[7], training)
-        inputs = layers.padd_layer(inputs, [[0,0],[0,0],[0,1],[0,0]], name='padd3')
-        inputs = layers.conv_layer(inputs, layer_params[8], training)
-        #inputs = layers.maxpool_layer(inputs, (3,2), (3,2), 'valid', 'pool3')
-        #
-        params = [[ 512, 3, (1,1), 'same', True,  True, 'conv1'], 
-                  [ 512, 3, (1,1), 'same', True, False, 'conv2']] 
-        inputs = layers.block_resnet_others(inputs, params, True, training, 'res3')
-        #
-        conv_feat = layers.conv_layer(inputs, layer_params[9], training)
-        # 
-        feat_size = tf.shape(conv_feat)
+        feat_size = tf.shape(inputs)
         #
     #
     # Calculate resulting sequence length from original image widths
     #
-    two = tf.constant(2, dtype=tf.float32, name='two')
+    # two = tf.constant(2, dtype=tf.float32, name='two')
+    # #
+    # w = tf.cast(width, tf.float32)
+    # for _ in range(5):
+    #     w = tf.div(w, two)
+    #     w = tf.ceil(w)
+    # #
+    # w = tf.cast(w, tf.int32)
+    # #
+    # print("w before tile:", w)
+    # w = tf.tile(w, [feat_size[1]])
+    # print("w before flatten shape:", w.shape)
+    # #
+    # # Flatten -> Vectorize
+    # sequence_length = tf.reshape(w, [-1], name='seq_len')
+    # print("w after flatten shape:", sequence_length.shape)
     #
-    w = tf.cast(width, tf.float32)
-    #
-    w = tf.div(w, two)
-    w = tf.ceil(w)
-    #
-    w = tf.div(w, two)
-    w = tf.ceil(w)
-    #
-    w = tf.div(w, two)
-    w = tf.ceil(w)
-    #
-    w = tf.cast(w, tf.int32)
-    #
-    w = tf.tile(w, [feat_size[1] ])
-    #
-    # Vectorize
-    sequence_length = tf.reshape(w, [-1], name='seq_len') 
-    #
-    
-    #
-    return conv_feat, sequence_length
-    #
+    return inputs#, sequence_length
+
 
 def rnn_detect_layers(conv_feat, sequence_length, num_anchors):
     #
     # one-picture features
+    print("conv feat before sequeeze shape: ", conv_feat.shape)
     conv_feat = tf.squeeze(conv_feat, axis = 0) # squeeze
+    print("conv feat after sequeeze shape: ", conv_feat.shape)
     #
     #
     # Transpose to time-major order for efficiency
     #  --> [paddedSeqLen batchSize numFeatures]
     #
     rnn_sequence = tf.transpose(conv_feat, perm = [1, 0, 2], name = 'time_major')
+    print("conv feat after transpose shape: ", rnn_sequence.shape)
     #
     
     #
@@ -130,18 +97,23 @@ def rnn_detect_layers(conv_feat, sequence_length, num_anchors):
     fc_size = 512  # 256, 384, 512
     #    
     #
+
     rnn1 = layers.rnn_layer(rnn_sequence, sequence_length, rnn_size, 'bdrnn1')
+    print("RNN1 feat shape: ", rnn1.shape)
     rnn2 = layers.rnn_layer(rnn1, sequence_length, rnn_size, 'bdrnn2')
+    print("RNN2 feat shape: ", rnn2.shape)
     #rnn3 = rnn_layer(rnn2, sequence_length, rnn_size, 'bdrnn3')
     #
     weight_initializer = tf.contrib.layers.variance_scaling_initializer()
     bias_initializer = tf.constant_initializer(value=0.0)
     #
+
     rnn_feat = tf.layers.dense(rnn2, fc_size,
                                activation = tf.nn.relu,
                                kernel_initializer = weight_initializer,
                                bias_initializer = bias_initializer,
                                name = 'rnn_feat')
+    print("RNN feat(after dense) shape: ", rnn_feat.shape)
     #
     # out
     #
@@ -162,6 +134,9 @@ def rnn_detect_layers(conv_feat, sequence_length, num_anchors):
                               kernel_initializer = weight_initializer,
                               bias_initializer = bias_initializer,
                               name = 'text_hor')
+    print("rnn_cls  shape: ", rnn_cls.shape)
+    print("rnn_ver shape: ", rnn_ver.shape)
+    print("rnn_hor shape: ", rnn_hor.shape)
     #
     # dense operates on last dim
     #
@@ -170,6 +145,9 @@ def rnn_detect_layers(conv_feat, sequence_length, num_anchors):
     rnn_cls = tf.transpose(rnn_cls, perm = [1, 0, 2], name = 'rnn_cls')
     rnn_ver = tf.transpose(rnn_ver, perm = [1, 0, 2], name = 'rnn_ver')
     rnn_hor = tf.transpose(rnn_hor, perm = [1, 0, 2], name = 'rnn_hor')
+    print("rnn_cls transpose shape: ", rnn_cls.shape)
+    print("rnn_ver transpose shape: ", rnn_ver.shape)
+    print("rnn_hor transpose shape: ", rnn_hor.shape)
     #
     return rnn_cls, rnn_ver, rnn_hor
     #
@@ -297,3 +275,106 @@ In spirit, it is same with the focal loss, but in different implementations.
 
 """
 
+# def conv_feat_layers(inputs, width, training):
+#     #
+#     # convolutional features maps for detection
+#     #
+#
+#     #
+#     # detection
+#     #
+#     # [3,1; 1,1],
+#     # [9,2; 3,2], [9,2; 3,2], [9,2; 3,2]
+#     # [18,4; 6,4], [18,4; 6,4], [18,4; 6,4]
+#     # [36,8; 12,8], [36,8; 12,8], [36,8; 12,8],
+#     #
+#     # anchor width:  8,
+#     # anchor height: 6, 12, 24, 36,
+#     #
+#     # feature_layer --> receptive_field
+#     # [0,0] --> [0:36, 0:8]
+#     # [0,1] --> [0:36, 8:8+8]
+#     # [i,j] --> [12*i:36+12*i, 8*j:8+8*j]
+#     #
+#     # feature_layer --> anchor_center
+#     # [0,0] --> [18, 4]
+#     # [0,1] --> [18, 4+8]
+#     # [i,j] --> [18+12*i, 4+8*j]
+#     #
+#
+#     #
+#     layer_params = [ [  64, (3,3), (1,1),  'same', True, True, 'conv1'],
+#                      [ 128, (3,3), (1,1),  'same', True, True, 'conv2'],
+#                      [ 128, (2,2), (2,2), 'valid', True, True, 'pool1'], # for pool
+#                      [ 128, (3,3), (1,1),  'same', True, True, 'conv3'],
+#                      [ 256, (3,3), (1,1),  'same', True, True, 'conv4'],
+#                      [ 256, (2,2), (2,2), 'valid', True, True, 'pool2'], # for pool
+#                      [ 256, (3,3), (1,1),  'same', True, True, 'conv5'],
+#                      [ 512, (3,3), (1,1),  'same', True, True, 'conv6'],
+#                      [ 512, (3,2), (3,2), 'valid', True, True, 'pool3'], # for pool
+#                      [ 512, (3,1), (1,1), 'valid', True, True, 'conv_feat'] ] # for feat
+#
+#     #
+#     with tf.variable_scope("conv_comm"):
+#         #
+#         inputs = layers.conv_layer(inputs, [  64, (3,3), (1,1),  'same', True, True, 'conv1'], training)
+#         inputs = layers.conv_layer(inputs, [ 128, (3,3), (1,1),  'same', True, True, 'conv2'], training)
+#         inputs = layers.padd_layer(inputs, [[0,0],[0,1],[0,1],[0,0]], name='padd1')
+#         #inputs = layers.conv_layer(inputs, layer_params[2], training)
+#         inputs = layers.maxpool_layer(inputs, (2,2), (2,2), 'valid', 'pool1')
+#         #
+#         params = [[ 128, 3, (1,1), 'same', True,  True, 'conv1'],
+#                   [ 128, 3, (1,1), 'same', True, False, 'conv2']]
+#         inputs = layers.block_resnet_others(inputs, params, True, training, 'res1')
+#         #
+#         inputs = layers.conv_layer(inputs, [ 128, (3,3), (1,1),  'same', True, True, 'conv3'], training)
+#         inputs = layers.conv_layer(inputs, [ 256, (3,3), (1,1),  'same', True, True, 'conv4'], training)
+#         inputs = layers.padd_layer(inputs, [[0,0],[0,1],[0,1],[0,0]], name='padd2')
+#         #inputs = layers.conv_layer(inputs, layer_params[5], training)
+#         inputs = layers.maxpool_layer(inputs, (2,2), (2,2), 'valid', 'pool2')
+#         #
+#         params = [[ 256, 3, (1,1), 'same', True,  True, 'conv1'],
+#                   [ 256, 3, (1,1), 'same', True, False, 'conv2']]
+#         inputs = layers.block_resnet_others(inputs, params, True, training, 'res2')
+#         #
+#         inputs = layers.conv_layer(inputs, [ 256, (3,3), (1,1),  'same', True, True, 'conv5'], training)
+#         inputs = layers.conv_layer(inputs, [ 512, (3,3), (1,1),  'same', True, True, 'conv6'], training)
+#         inputs = layers.padd_layer(inputs, [[0,0],[0,0],[0,1],[0,0]], name='padd3')
+#         inputs = layers.conv_layer(inputs, [ 512, (3,2), (3,2), 'valid', True, True, 'pool3'], training)
+#         #inputs = layers.maxpool_layer(inputs, (3,2), (3,2), 'valid', 'pool3')
+#         #
+#         params = [[ 512, 3, (1,1), 'same', True,  True, 'conv1'],
+#                   [ 512, 3, (1,1), 'same', True, False, 'conv2']]
+#         inputs = layers.block_resnet_others(inputs, params, True, training, 'res3')
+#         #
+#         conv_feat = layers.conv_layer(inputs, [ 512, (3,1), (1,1), 'valid', True, True, 'conv_feat'], training)
+#         #
+#         feat_size = tf.shape(conv_feat)
+#         #
+#     #
+#     # Calculate resulting sequence length from original image widths
+#     #
+#     two = tf.constant(2, dtype=tf.float32, name='two')
+#     #
+#     w = tf.cast(width, tf.float32)
+#     #
+#     w = tf.div(w, two)
+#     w = tf.ceil(w)
+#     #
+#     w = tf.div(w, two)
+#     w = tf.ceil(w)
+#     #
+#     w = tf.div(w, two)
+#     w = tf.ceil(w)
+#     #
+#     w = tf.cast(w, tf.int32)
+#     #
+#     w = tf.tile(w, [feat_size[1] ])
+#     #
+#     # Vectorize
+#     sequence_length = tf.reshape(w, [-1], name='seq_len')
+#     #
+#
+#     #
+#     return conv_feat, sequence_length
+    #
