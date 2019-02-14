@@ -107,7 +107,6 @@ def rnn_detect_layers(conv_feat, sequence_length, num_anchors):
     weight_initializer = tf.contrib.layers.variance_scaling_initializer()
     bias_initializer = tf.constant_initializer(value=0.0)
     #
-
     rnn_feat = tf.layers.dense(rnn2, fc_size,
                                activation = tf.nn.relu,
                                kernel_initializer = weight_initializer,
@@ -155,11 +154,13 @@ def rnn_detect_layers(conv_feat, sequence_length, num_anchors):
 def detect_loss(rnn_cls, rnn_ver, rnn_hor, target_cls, target_ver, target_hor):        
     #
     # loss_cls    
-    #
+    # label为正的prediction
     rnn_cls_posi = rnn_cls * target_cls
-    rnn_cls_neg = rnn_cls - rnn_cls_posi
-    #
+    # label为负的prediction
+    rnn_cls_neg = rnn_cls * (1-target_cls)
+    # label为正的prediction距离1的差值平方
     pow_posi = tf.square(rnn_cls_posi - target_cls)
+    # label为负的prediction的平方
     pow_neg = tf.square(rnn_cls_neg)
     #
     mod_posi = tf.pow(pow_posi / 0.24, 5)    # 0.3, 0.2,     0.5,0.4
@@ -196,8 +197,6 @@ def detect_loss(rnn_cls, rnn_ver, rnn_hor, target_cls, target_ver, target_hor):
     #
     loss_ver = loss_ver_posi + loss_ver_neg
     loss_hor = loss_hor_posi + loss_hor_neg
-    #
-    
     #
     loss = tf.add(loss_cls, loss_ver + loss_hor, name = 'loss')
     # loss = tf.clip_by_value(tf.add(loss_cls, loss_ver + loss_hor), 1e-8, 1e5,name='loss')
