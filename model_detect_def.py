@@ -199,10 +199,8 @@ def detect_loss(rnn_cls, rnn_ver, rnn_hor, target_cls, target_ver, target_hor):
     #
     
     #
-    # loss = tf.add(loss_cls, loss_ver + loss_hor, name = 'loss')
-    loss = tf.clip_by_value(tf.add(loss_cls, loss_ver + loss_hor), 1e-8, 1e5,name='loss')
-    # loss = tf.clip_by_value(loss, 1e-8, 1000.0)
-    
+    loss = tf.add(loss_cls, loss_ver + loss_hor, name = 'loss')
+    # loss = tf.clip_by_value(tf.add(loss_cls, loss_ver + loss_hor), 1e-8, 1e5,name='loss')
     #
     return loss
     #

@@ -367,6 +367,8 @@ def get_image_and_targets(img_file, txt_file, anchor_heights):
     #
     # # counter-clockwise 90
     img = img.transpose(Image.ROTATE_90)
+
+
     img_data = np.array(img, dtype = np.float32)/255
     # height, width, channel
     #
@@ -444,6 +446,7 @@ def get_image_and_targets(img_file, txt_file, anchor_heights):
             target_hor[h, w] = hor
             #
     #
+    img.close()
     return [img_data], [height_feat, width_feat], target_cls, target_ver, target_hor
     #
 #
@@ -554,6 +557,7 @@ def draw_text_boxes(img_file, text_bbox):
         #
     #
     img_draw.save(img_file)
+    img_draw.close()
     #
 
 #

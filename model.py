@@ -24,7 +24,7 @@ TRAINING_STEPS = 50000
 LEARNING_RATE_BASE = 1e-5
 MOMENTUM = 0.9
 REG_LAMBDA = 0.0001
-GRAD_CLIP = 1.0
+GRAD_CLIP = 100.0
 #
 VALID_FREQ = 10000
 LOSS_FREQ = 100
@@ -105,6 +105,7 @@ class CTPN():
         img_size = img.size  # (width, height)
         w_arr = np.array([ img_size[0] ], dtype = np.int32)
         #
+        img.close()
         with self.graph.as_default():              
             #
             feed_dict = {self.x: img_data}#, self.w: w_arr}
@@ -118,8 +119,6 @@ class CTPN():
             conn_bbox = model_data.do_nms_and_connection(text_bbox, conf_bbox)
             #
             if out_dir == None: return conn_bbox, text_bbox, conf_bbox
-            #
-            
             #
             # predication_result save-path
             if not os.path.exists(out_dir): os.mkdir(out_dir)
@@ -247,6 +246,7 @@ class CTPN():
                 explode_draw_flag = True
                 explode_count = 0
                 while step < self.train_steps:
+                # for _ in range(1):
                     #
                     # if step == train_step_half:
                     #     sess.run(tf.assign(self.learning_rate, tf.constant(self.learning_rate_base/10, dtype=tf.float32)))
@@ -274,14 +274,23 @@ class CTPN():
                     # txt_file = model_data.get_target_txt_file(img_file)
 
                     txt_file = model_data.get_target_json_file(img_file)
+
                     if not os.path.exists(txt_file):
                         print('label_file: %s NOT exist' % txt_file)
                         continue
                     #
-                    # input data                    
-                    img_data, feat_size, target_cls, target_ver, target_hor = \
-                    model_data.get_image_and_targets(img_file, txt_file, config.anchor_heights)
+                    # input data
+                    try:
+                        img_data, feat_size, target_cls, target_ver, target_hor = \
+                        model_data.get_image_and_targets(img_file, txt_file, config.anchor_heights)
+                    except:
+                        print("image load error: ", img_file)
+                        continue
                     #
+                    if np.sum(target_cls) == 0 or np.sum(target_cls + 1) /2 - np.sum(target_cls) /2 * 2 == 0:
+                        print("not valid image:", img_file)
+                        continue
+
                     img_size = img_data[0].shape   # height, width, channel
                     # print("image shape", img_size)
                     #
@@ -293,7 +302,8 @@ class CTPN():
                     #
                     _, loss_value, step, lr = sess.run([self.train_op, self.loss, self.global_step, self.learning_rate],\
                                                        feed_dict)
-
+                    # gt_feat = [target_cls, target_ver, target_hor]
+                    # np.save("gt_feat.npy", gt_feat)
                     #
                     if loss_value> 1e3:
                         explode_count += 1
@@ -406,6 +416,7 @@ class CTPN():
                     #
                     if idx < 20:
                         # trans
+
                         text_bbox, conf_bbox = model_data.trans_results(r_cls, r_ver, r_hor, \
                                                                         config.anchor_heights, config.threshold)
                         conn_bbox = model_data.do_nms_and_connection(text_bbox, conf_bbox)

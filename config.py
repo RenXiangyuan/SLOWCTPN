@@ -28,6 +28,6 @@ anchor_heights = [60, 120, 240, 360]
 
 #
 
-threshold = 0.8  #
+threshold = 0.5  #
 #
 
